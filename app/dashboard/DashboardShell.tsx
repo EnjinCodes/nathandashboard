@@ -25,33 +25,53 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+function isSmallScreen() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
 export default function DashboardShell({ userName }: Props) {
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const update = () => setCompact(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
+
   return (
     <div style={styles.page}>
       <div style={styles.bg} aria-hidden="true" />
 
-      <header style={styles.header}>
+      <header
+        style={{
+          ...styles.header,
+          ...(compact ? styles.headerCompact : null),
+        }}
+      >
         <div style={styles.brand}>
           <div style={styles.brandMark}>
             <div style={styles.brandDot} />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={styles.brandTitle}>Network Control</div>
             <div style={styles.brandSub}>Switch Management</div>
           </div>
         </div>
 
-        <div style={styles.headerRight}>
+        <div style={{ ...styles.headerRight, ...(compact ? styles.headerRightCompact : null) }}>
           <div style={styles.userChip}>
             <span style={{ opacity: 0.65 }}>User</span>
-            <span style={{ fontWeight: 800 }}>{userName}</span>
+            <span style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{userName}</span>
           </div>
           <LogoutButton />
         </div>
       </header>
 
       <main style={styles.main}>
-        <CiscoSwitchHero />
+        <CiscoSwitchHero compact={compact} />
       </main>
     </div>
   );
@@ -60,7 +80,7 @@ export default function DashboardShell({ userName }: Props) {
 /** =========================
  *  Switch-only dashboard
  *  ========================= */
-function CiscoSwitchHero() {
+function CiscoSwitchHero({ compact }: { compact: boolean }) {
   // Device identity (set these to real values later)
   const [friendlyName] = useState("Core Switch");
   const [model] = useState("Cisco Catalyst");
@@ -141,7 +161,7 @@ function CiscoSwitchHero() {
       setPhase("checking");
       setProgress(0);
       setDetail("Querying update service…");
-      await sleep(700);
+      await sleep(650);
 
       // Placeholder latest version — replace with real check later
       const pretendLatest = "17.9.4";
@@ -170,21 +190,21 @@ function CiscoSwitchHero() {
 
       for (let i = 0; i <= 55; i += 5) {
         setProgress(i);
-        await sleep(160);
+        await sleep(150);
       }
 
       setPhase("installing");
       setDetail("Installing update package…");
       for (let i = 55; i <= 90; i += 5) {
         setProgress(i);
-        await sleep(220);
+        await sleep(210);
       }
 
       setPhase("rebooting");
       setDetail("Rebooting switch…");
       for (let i = 90; i <= 100; i += 2) {
         setProgress(clamp(i, 0, 100));
-        await sleep(180);
+        await sleep(170);
       }
 
       const now = new Date().toISOString();
@@ -222,7 +242,6 @@ function CiscoSwitchHero() {
       const res = await fetch("/api/switch-state", { method: "DELETE" });
       if (!res.ok) throw new Error("reset failed");
 
-      // Reset local UI state
       setInstalledAtISO(null);
       setLatestVersion(null);
       setPhase("idle");
@@ -236,17 +255,17 @@ function CiscoSwitchHero() {
 
   return (
     <div style={styles.hero}>
-      <div style={styles.heroTop}>
+      {/* Top block */}
+      <div
+        style={{
+          ...styles.heroTop,
+          ...(compact ? styles.heroTopCompact : null),
+        }}
+      >
         <div style={styles.heroLeft}>
           <div style={styles.heroTitleRow}>
             <div style={styles.deviceIcon}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                style={{ opacity: 0.9 }}
-              >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.9 }}>
                 <path
                   d="M4 7.5h16M6.5 10.5h2M6.5 13.5h2M6.5 16.5h2M10.5 10.5h2M10.5 13.5h2M10.5 16.5h2M14.5 10.5h2M14.5 13.5h2M14.5 16.5h2"
                   stroke="currentColor"
@@ -261,15 +280,20 @@ function CiscoSwitchHero() {
               </svg>
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={styles.heroTitle}>{friendlyName}</div>
               <div style={styles.heroSubtitle}>
-                {model} • Management {mgmtIp}
+                {model} • Mgmt {mgmtIp}
               </div>
             </div>
           </div>
 
-          <div style={styles.metaGrid}>
+          <div
+            style={{
+              ...styles.metaGrid,
+              ...(compact ? styles.metaGridCompact : null),
+            }}
+          >
             <Meta label="Serial" value={serial} mono />
             <Meta label="Current Version" value={currentVersion} mono />
             <Meta label="Latest Version" value={latestVersion ?? "—"} mono />
@@ -281,19 +305,20 @@ function CiscoSwitchHero() {
           </div>
         </div>
 
-        <div style={styles.heroRight}>
+        <div style={{ ...styles.heroRight, ...(compact ? styles.heroRightCompact : null) }}>
           <StatusPill tone={status.tone}>
             {busy && <Spinner />}
             <span>{status.label}</span>
           </StatusPill>
 
-          <div style={styles.actionStack}>
+          <div style={{ ...styles.actionStack, ...(compact ? styles.actionStackCompact : null) }}>
             <button
               onClick={checkForUpdates}
               disabled={busy}
               style={{
                 ...styles.btn,
                 ...styles.btnSecondary,
+                ...(compact ? styles.btnCompact : null),
                 opacity: busy ? 0.6 : 1,
               }}
             >
@@ -306,10 +331,8 @@ function CiscoSwitchHero() {
               style={{
                 ...styles.btn,
                 ...styles.btnPrimary,
-                opacity:
-                  busy || phase !== "available" || alreadyOnLatest || locked
-                    ? 0.6
-                    : 1,
+                ...(compact ? styles.btnCompact : null),
+                opacity: busy || phase !== "available" || alreadyOnLatest || locked ? 0.6 : 1,
               }}
             >
               {locked ? "Update locked" : alreadyOnLatest ? "Already updated" : "Run update"}
@@ -322,6 +345,7 @@ function CiscoSwitchHero() {
                 style={{
                   ...styles.btn,
                   ...styles.btnDanger,
+                  ...(compact ? styles.btnCompact : null),
                   opacity: busy ? 0.6 : 1,
                 }}
               >
@@ -335,6 +359,7 @@ function CiscoSwitchHero() {
               style={{
                 ...styles.btn,
                 ...styles.btnGhost,
+                ...(compact ? styles.btnCompact : null),
                 opacity: busy ? 0.6 : 1,
               }}
             >
@@ -344,7 +369,13 @@ function CiscoSwitchHero() {
         </div>
       </div>
 
-      <div style={styles.heroBottom}>
+      {/* Bottom block */}
+      <div
+        style={{
+          ...styles.heroBottom,
+          ...(compact ? styles.heroBottomCompact : null),
+        }}
+      >
         <div style={styles.progressPanel}>
           <div style={styles.progressTop}>
             <div style={styles.progressText}>{detail}</div>
@@ -359,8 +390,8 @@ function CiscoSwitchHero() {
         <div style={styles.sidePanel}>
           <div style={styles.sideTitle}>Update Policy</div>
           <div style={styles.sideText}>
-            Updates are locked after installation to prevent accidental re-runs.
-            Use “Reset update lock” when you need to run another update.
+            Updates lock after installation to prevent accidental re-runs. Use “Reset update lock” when you
+            need to perform another update.
           </div>
 
           <div style={styles.policyRow}>
@@ -439,7 +470,7 @@ function Spinner() {
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    padding: 18,
+    padding: 14,
     background:
       "radial-gradient(1200px 800px at 20% 10%, rgba(99, 102, 241, 0.16), transparent 60%)," +
       "radial-gradient(1000px 700px at 90% 20%, rgba(16, 185, 129, 0.14), transparent 55%)," +
@@ -461,7 +492,7 @@ const styles: Record<string, React.CSSProperties> = {
   header: {
     maxWidth: 1100,
     margin: "0 auto",
-    padding: 14,
+    padding: 12,
     borderRadius: 18,
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.10)",
@@ -469,12 +500,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
+  headerCompact: { padding: 10, borderRadius: 16, flexWrap: "wrap" },
   brand: { display: "flex", alignItems: "center", gap: 12 },
   brandMark: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 14,
     display: "grid",
     placeItems: "center",
@@ -493,6 +525,7 @@ const styles: Record<string, React.CSSProperties> = {
   brandSub: { fontSize: 12, opacity: 0.7, marginTop: 2 },
 
   headerRight: { display: "flex", alignItems: "center", gap: 10 },
+  headerRightCompact: { width: "100%", justifyContent: "space-between" },
   userChip: {
     display: "flex",
     gap: 10,
@@ -504,11 +537,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
 
-  main: { maxWidth: 1100, margin: "14px auto 0", paddingBottom: 22 },
+  main: { maxWidth: 1100, margin: "12px auto 0", paddingBottom: 20 },
 
   hero: {
     borderRadius: 22,
-    padding: 18,
+    padding: 14,
     background: "rgba(255,255,255,0.06)",
     border: "1px solid rgba(255,255,255,0.10)",
     boxShadow: "0 22px 70px rgba(0,0,0,0.45)",
@@ -521,13 +554,11 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     alignItems: "start",
   },
+  heroTopCompact: { gridTemplateColumns: "1fr", gap: 12 },
 
   heroLeft: {},
-  heroRight: {
-    display: "grid",
-    gap: 12,
-    justifyItems: "end",
-  },
+  heroRight: { display: "grid", gap: 12, justifyItems: "end" },
+  heroRightCompact: { justifyItems: "stretch" },
 
   heroTitleRow: { display: "flex", gap: 12, alignItems: "center" },
   deviceIcon: {
@@ -538,9 +569,10 @@ const styles: Record<string, React.CSSProperties> = {
     placeItems: "center",
     background: "rgba(255,255,255,0.06)",
     border: "1px solid rgba(255,255,255,0.10)",
+    flex: "0 0 auto",
   },
-  heroTitle: { fontSize: 22, fontWeight: 950, letterSpacing: 0.2 },
-  heroSubtitle: { marginTop: 4, fontSize: 13, opacity: 0.75 },
+  heroTitle: { fontSize: 20, fontWeight: 950, letterSpacing: 0.2 },
+  heroSubtitle: { marginTop: 4, fontSize: 13, opacity: 0.75, overflowWrap: "anywhere" },
 
   metaGrid: {
     marginTop: 14,
@@ -548,6 +580,7 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 10,
   },
+  metaGridCompact: { gridTemplateColumns: "1fr" },
   metaCard: {
     padding: 12,
     borderRadius: 16,
@@ -562,9 +595,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 950,
     fontFamily:
       'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    overflowWrap: "anywhere",
   },
 
   actionStack: { width: "100%", display: "grid", gap: 10 },
+  actionStackCompact: { gap: 8 },
 
   btn: {
     width: 260,
@@ -574,10 +609,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     border: "1px solid rgba(255,255,255,0.12)",
   },
-  btnSecondary: {
-    background: "rgba(255,255,255,0.06)",
-    color: "rgba(229,231,235,0.9)",
-  },
+  btnCompact: { width: "100%" },
+  btnSecondary: { background: "rgba(255,255,255,0.06)", color: "rgba(229,231,235,0.9)" },
   btnPrimary: {
     background:
       "linear-gradient(135deg, rgba(99,102,241,0.95) 0%, rgba(16,185,129,0.9) 100%)",
@@ -600,6 +633,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 950,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.06)",
+    justifySelf: "end",
   },
   pillNeutral: { color: "rgba(229,231,235,0.85)" },
   pillInfo: {
@@ -630,6 +664,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     alignItems: "start",
   },
+  heroBottomCompact: { gridTemplateColumns: "1fr", gap: 12 },
 
   progressPanel: {
     padding: 14,
@@ -637,13 +672,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.10)",
   },
-  progressTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    alignItems: "center",
-  },
-  progressText: { fontSize: 13, opacity: 0.9 },
+  progressTop: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" },
+  progressText: { fontSize: 13, opacity: 0.9, overflowWrap: "anywhere" },
   progressPct: {
     fontSize: 12,
     opacity: 0.75,
@@ -675,12 +705,7 @@ const styles: Record<string, React.CSSProperties> = {
   sideTitle: { fontWeight: 950, letterSpacing: 0.2 },
   sideText: { marginTop: 8, fontSize: 12, opacity: 0.75, lineHeight: 1.5 },
 
-  policyRow: {
-    marginTop: 12,
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 10,
-  },
+  policyRow: { marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
   policyItem: {
     padding: 12,
     borderRadius: 16,
