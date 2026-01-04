@@ -1,4 +1,6 @@
+// app/api/switch-state/route.ts
 import { kv } from "@vercel/kv";
+import { getServerSession } from "next-auth";
 
 type SwitchState = {
   installedVersion: string;
@@ -26,4 +28,15 @@ export async function POST(req: Request) {
 
   await kv.set(KEY, state);
   return Response.json({ ok: true, state });
+}
+
+export async function DELETE() {
+  // Require auth so random people can’t reset your switch state
+  const session = await getServerSession();
+  if (!session) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  await kv.del(KEY);
+  return Response.json({ ok: true });
 }

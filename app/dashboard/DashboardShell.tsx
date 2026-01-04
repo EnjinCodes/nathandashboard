@@ -37,7 +37,7 @@ export default function DashboardShell({ userName }: Props) {
           </div>
           <div>
             <div style={styles.brandTitle}>Network Control</div>
-            <div style={styles.brandSub}>Cisco Switch Dashboard</div>
+            <div style={styles.brandSub}>Switch Management</div>
           </div>
         </div>
 
@@ -61,11 +61,11 @@ export default function DashboardShell({ userName }: Props) {
  *  Switch-only dashboard
  *  ========================= */
 function CiscoSwitchHero() {
-  // Placeholder device identity
+  // Device identity (set these to real values later)
   const [friendlyName] = useState("Core Switch");
-  const [model] = useState("Cisco Catalyst (placeholder)");
-  const [mgmtIp] = useState("192.168.1.2 (placeholder)");
-  const [serial] = useState("FOCXXXX0ABC (placeholder)");
+  const [model] = useState("Cisco Catalyst");
+  const [mgmtIp] = useState("192.168.1.2");
+  const [serial] = useState("FOCXXXX0ABC");
 
   // Versioning
   const [currentVersion, setCurrentVersion] = useState("16.12.5");
@@ -83,7 +83,7 @@ function CiscoSwitchHero() {
     phase === "installing" ||
     phase === "rebooting";
 
-  // Load persisted KV state
+  // Load persisted state from KV on mount
   useEffect(() => {
     (async () => {
       try {
@@ -99,7 +99,7 @@ function CiscoSwitchHero() {
           setCurrentVersion(state.installedVersion);
           setInstalledAtISO(state.installedAtISO);
           setPhase("done");
-          setDetail(`Installed ${state.installedVersion} previously.`);
+          setDetail("Up to date.");
           setProgress(100);
         }
       } catch {
@@ -134,25 +134,25 @@ function CiscoSwitchHero() {
   }, [phase]);
 
   const alreadyOnLatest = !!latestVersion && currentVersion === latestVersion;
-  const locked = !!installedAtISO; // once updated, lock updates
+  const locked = !!installedAtISO;
 
   async function checkForUpdates() {
     try {
       setPhase("checking");
       setProgress(0);
-      setDetail("Contacting update service…");
+      setDetail("Querying update service…");
       await sleep(700);
 
-      // Placeholder latest version
+      // Placeholder latest version — replace with real check later
       const pretendLatest = "17.9.4";
       setLatestVersion(pretendLatest);
 
       if (pretendLatest !== currentVersion) {
         setPhase("available");
-        setDetail(`Update found: ${pretendLatest}`);
+        setDetail(`Update available: ${pretendLatest}`);
       } else {
         setPhase("none");
-        setDetail("Already on the latest version.");
+        setDetail("No updates available.");
       }
     } catch {
       setPhase("error");
@@ -181,7 +181,7 @@ function CiscoSwitchHero() {
       }
 
       setPhase("rebooting");
-      setDetail("Rebooting switch (simulated)…");
+      setDetail("Rebooting switch…");
       for (let i = 90; i <= 100; i += 2) {
         setProgress(clamp(i, 0, 100));
         await sleep(180);
@@ -191,9 +191,10 @@ function CiscoSwitchHero() {
       setCurrentVersion(latestVersion);
       setInstalledAtISO(now);
       setPhase("done");
-      setDetail(`Updated successfully to ${latestVersion}.`);
+      setDetail("Up to date.");
       setProgress(100);
 
+      // Persist to KV
       await fetch("/api/switch-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -204,7 +205,7 @@ function CiscoSwitchHero() {
       });
     } catch {
       setPhase("error");
-      setDetail("Update failed mid-process. Try again.");
+      setDetail("Update failed. Try again.");
       setProgress(0);
     }
   }
@@ -214,6 +215,23 @@ function CiscoSwitchHero() {
     setProgress(0);
     setDetail("Ready.");
     setLatestVersion(null);
+  }
+
+  async function resetUpdateLock() {
+    try {
+      const res = await fetch("/api/switch-state", { method: "DELETE" });
+      if (!res.ok) throw new Error("reset failed");
+
+      // Reset local UI state
+      setInstalledAtISO(null);
+      setLatestVersion(null);
+      setPhase("idle");
+      setProgress(0);
+      setDetail("Ready.");
+    } catch {
+      setPhase("error");
+      setDetail("Reset failed. Make sure you are signed in.");
+    }
   }
 
   return (
@@ -294,12 +312,22 @@ function CiscoSwitchHero() {
                     : 1,
               }}
             >
-              {locked
-                ? "Update locked"
-                : alreadyOnLatest
-                ? "Already updated"
-                : "Run update"}
+              {locked ? "Update locked" : alreadyOnLatest ? "Already updated" : "Run update"}
             </button>
+
+            {locked && (
+              <button
+                onClick={resetUpdateLock}
+                disabled={busy}
+                style={{
+                  ...styles.btn,
+                  ...styles.btnDanger,
+                  opacity: busy ? 0.6 : 1,
+                }}
+              >
+                Reset update lock
+              </button>
+            )}
 
             <button
               onClick={resetUI}
@@ -326,22 +354,13 @@ function CiscoSwitchHero() {
           <div style={styles.progressBar}>
             <div style={{ ...styles.progressFill, width: `${progress}%` }} />
           </div>
-
-          <div style={styles.hintRow}>
-            <HintDot tone={status.tone} />
-            <span style={{ opacity: 0.75 }}>
-              This is a UI simulation. Next step: connect to real switch data
-              through an API/bridge.
-            </span>
-          </div>
         </div>
 
         <div style={styles.sidePanel}>
           <div style={styles.sideTitle}>Update Policy</div>
           <div style={styles.sideText}>
-            Once an update is installed, the dashboard locks further updates to
-            prevent accidental re-runs. Use an admin reset endpoint later if you
-            want to unlock.
+            Updates are locked after installation to prevent accidental re-runs.
+            Use “Reset update lock” when you need to run another update.
           </div>
 
           <div style={styles.policyRow}>
@@ -350,7 +369,7 @@ function CiscoSwitchHero() {
               <div style={styles.policyValue}>{locked ? "Locked" : "Unlocked"}</div>
             </div>
             <div style={styles.policyItem}>
-              <div style={styles.policyLabel}>Source</div>
+              <div style={styles.policyLabel}>State Store</div>
               <div style={styles.policyValue}>Vercel KV</div>
             </div>
           </div>
@@ -409,31 +428,6 @@ function Spinner() {
         borderTopColor: "rgba(255,255,255,0.9)",
         display: "inline-block",
         animation: "spin 0.9s linear infinite",
-      }}
-    />
-  );
-}
-
-function HintDot({ tone }: { tone: "neutral" | "info" | "ok" | "warn" | "bad" }) {
-  const bg =
-    tone === "ok"
-      ? "rgba(16,185,129,0.85)"
-      : tone === "warn"
-      ? "rgba(245,158,11,0.9)"
-      : tone === "bad"
-      ? "rgba(220,38,38,0.9)"
-      : tone === "info"
-      ? "rgba(59,130,246,0.9)"
-      : "rgba(255,255,255,0.55)";
-
-  return (
-    <span
-      style={{
-        width: 10,
-        height: 10,
-        borderRadius: 999,
-        background: bg,
-        boxShadow: "0 0 0 4px rgba(255,255,255,0.06)",
       }}
     />
   );
@@ -570,11 +564,7 @@ const styles: Record<string, React.CSSProperties> = {
       'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
   },
 
-  actionStack: {
-    width: "100%",
-    display: "grid",
-    gap: 10,
-  },
+  actionStack: { width: "100%", display: "grid", gap: 10 },
 
   btn: {
     width: 260,
@@ -593,9 +583,11 @@ const styles: Record<string, React.CSSProperties> = {
       "linear-gradient(135deg, rgba(99,102,241,0.95) 0%, rgba(16,185,129,0.9) 100%)",
     color: "#061018",
   },
-  btnGhost: {
-    background: "transparent",
-    color: "rgba(229,231,235,0.85)",
+  btnGhost: { background: "transparent", color: "rgba(229,231,235,0.85)" },
+  btnDanger: {
+    background: "rgba(220, 38, 38, 0.16)",
+    color: "rgba(254, 226, 226, 0.95)",
+    border: "1px solid rgba(220, 38, 38, 0.35)",
   },
 
   pill: {
@@ -674,14 +666,6 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "width 180ms ease",
   },
 
-  hintRow: {
-    marginTop: 12,
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    fontSize: 12,
-  },
-
   sidePanel: {
     padding: 14,
     borderRadius: 18,
@@ -705,8 +689,4 @@ const styles: Record<string, React.CSSProperties> = {
   },
   policyLabel: { fontSize: 12, opacity: 0.7 },
   policyValue: { marginTop: 6, fontWeight: 950 },
-
-  // small unused but safe
-  card: {},
 };
-
