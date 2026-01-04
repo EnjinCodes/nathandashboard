@@ -1,4 +1,3 @@
-// app/dashboard/DashboardShell.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -133,7 +132,6 @@ function Divider() {
  *  Cisco Switch Card (persisted)
  *  ========================= */
 function CiscoSwitchCard() {
-  // Placeholder “device”
   const [model] = useState("Cisco Catalyst (placeholder)");
   const [serial] = useState("FOCXXXX0ABC (placeholder)");
 
@@ -158,8 +156,8 @@ function CiscoSwitchCard() {
       try {
         const res = await fetch("/api/switch-state", { cache: "no-store" });
         if (!res.ok) return;
-        const data = await res.json();
 
+        const data = await res.json();
         const state = data?.state as
           | { installedVersion: string; installedAtISO: string }
           | null;
@@ -172,7 +170,7 @@ function CiscoSwitchCard() {
           setProgress(100);
         }
       } catch {
-        // If KV isn’t configured yet, ignore.
+        // ignore
       }
     })();
   }, []);
@@ -211,7 +209,7 @@ function CiscoSwitchCard() {
       setDetail("Contacting update service…");
       await sleep(700);
 
-      // Placeholder logic: pretend a newer version exists
+      // Placeholder logic
       const pretendLatest = "17.9.4";
       setLatestVersion(pretendLatest);
 
@@ -232,7 +230,6 @@ function CiscoSwitchCard() {
     if (!latestVersion) return;
 
     try {
-      // Download
       setPhase("downloading");
       setDetail(`Downloading ${latestVersion}…`);
       setProgress(0);
@@ -242,7 +239,6 @@ function CiscoSwitchCard() {
         await sleep(160);
       }
 
-      // Install
       setPhase("installing");
       setDetail("Installing update package…");
       for (let i = 55; i <= 90; i += 5) {
@@ -250,7 +246,6 @@ function CiscoSwitchCard() {
         await sleep(220);
       }
 
-      // Reboot
       setPhase("rebooting");
       setDetail("Rebooting switch (simulated)…");
       for (let i = 90; i <= 100; i += 2) {
@@ -258,14 +253,14 @@ function CiscoSwitchCard() {
         await sleep(180);
       }
 
-      // Persist + Done
       const now = new Date().toISOString();
       setCurrentVersion(latestVersion);
       setInstalledAtISO(now);
       setPhase("done");
       setDetail(`Updated successfully to ${latestVersion}.`);
+      setProgress(100);
 
-      // Save to KV (Vercel KV)
+      // Save to KV via API route
       await fetch("/api/switch-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -274,8 +269,6 @@ function CiscoSwitchCard() {
           installedAtISO: now,
         }),
       });
-
-      setProgress(100);
     } catch {
       setPhase("error");
       setDetail("Update failed mid-process. Try again.");
@@ -283,13 +276,12 @@ function CiscoSwitchCard() {
     }
   }
 
-  async function reset() {
+  function resetUI() {
     setPhase("idle");
     setProgress(0);
     setDetail("Ready.");
     setLatestVersion(null);
-    // Note: reset does NOT clear KV intentionally.
-    // If you want an admin "Clear lock" button, tell me and I’ll add a DELETE endpoint.
+    // NOTE: does NOT clear KV (persisted state)
   }
 
   return (
@@ -309,41 +301,20 @@ function CiscoSwitchCard() {
       <Divider />
 
       <div style={styles.twoCol}>
-        <div style={styles.infoBlock}>
-          <div style={styles.infoLabel}>Device</div>
-          <div style={styles.infoValue}>{model}</div>
-        </div>
-
-        <div style={styles.infoBlock}>
-          <div style={styles.infoLabel}>Serial</div>
-          <div style={styles.infoValue}>{serial}</div>
-        </div>
-
-        <div style={styles.infoBlock}>
-          <div style={styles.infoLabel}>Current version</div>
-          <div style={styles.infoValueMono}>{currentVersion}</div>
-        </div>
-
-        <div style={styles.infoBlock}>
-          <div style={styles.infoLabel}>Latest version</div>
-          <div style={styles.infoValueMono}>
-            {latestVersion ? latestVersion : "—"}
-          </div>
-        </div>
-
-        <div style={styles.infoBlock}>
-          <div style={styles.infoLabel}>Last updated</div>
-          <div style={styles.infoValueMono}>
-            {installedAtISO ? new Date(installedAtISO).toLocaleString() : "—"}
-          </div>
-        </div>
-
-        <div style={styles.infoBlock}>
-          <div style={styles.infoLabel}>Update lock</div>
-          <div style={styles.infoValueMono}>
-            {installedAtISO ? "Locked after update" : "Not locked"}
-          </div>
-        </div>
+        <Info label="Device" value={model} mono={false} />
+        <Info label="Serial" value={serial} mono={false} />
+        <Info label="Current version" value={currentVersion} mono />
+        <Info label="Latest version" value={latestVersion ?? "—"} mono />
+        <Info
+          label="Last updated"
+          value={installedAtISO ? new Date(installedAtISO).toLocaleString() : "—"}
+          mono
+        />
+        <Info
+          label="Update lock"
+          value={installedAtISO ? "Locked after update" : "Not locked"}
+          mono
+        />
       </div>
 
       <div style={{ marginTop: 14 }}>
@@ -373,7 +344,9 @@ function CiscoSwitchCard() {
 
         <button
           onClick={runUpdate}
-          disabled={busy || phase !== "available" || alreadyOnLatest || !!installedAtISO}
+          disabled={
+            busy || phase !== "available" || alreadyOnLatest || !!installedAtISO
+          }
           style={{
             ...styles.btn,
             ...styles.btnPrimary,
@@ -391,7 +364,7 @@ function CiscoSwitchCard() {
         </button>
 
         <button
-          onClick={reset}
+          onClick={resetUI}
           disabled={busy}
           style={{ ...styles.btn, ...styles.btnGhost, opacity: busy ? 0.6 : 1 }}
         >
@@ -400,9 +373,26 @@ function CiscoSwitchCard() {
       </div>
 
       <div style={styles.miniNote}>
-        This stores update state in Vercel KV. On Vercel you can’t reliably write
-        to files at runtime, so KV (or Postgres) is the correct approach.
+        KV persistence is done through <code>/api/switch-state</code>. Make sure
+        that API route exists as a separate file.
       </div>
+    </div>
+  );
+}
+
+function Info({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div style={styles.infoBlock}>
+      <div style={styles.infoLabel}>{label}</div>
+      <div style={mono ? styles.infoValueMono : styles.infoValue}>{value}</div>
     </div>
   );
 }
@@ -444,9 +434,6 @@ function Spinner() {
   );
 }
 
-/** =========================
- *  Styles (matches login vibe)
- *  ========================= */
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",

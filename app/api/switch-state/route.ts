@@ -1,8 +1,8 @@
 import { kv } from "@vercel/kv";
 
 type SwitchState = {
-  installedVersion: string;   // last installed version
-  installedAtISO: string;     // when update finished
+  installedVersion: string;
+  installedAtISO: string;
 };
 
 const KEY = "cisco_switch_state_v1";
